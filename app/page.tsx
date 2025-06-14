@@ -57,43 +57,20 @@ const mockRules = [
 const mockViolations = [
   {
     id: 1,
-    rule: "Minimum Wall Thickness",
+    rule: "Wheel Clearance",
     severity: "high",
-    description: "Wall thickness of 1.2mm found at Feature 'Extrude 3'",
-    location: "Part Studio 1",
-  },
-  {
-    id: 2,
-    rule: "Maximum Overhang Angle",
-    severity: "medium",
-    description: "52° overhang detected in 'Boss Feature 2'",
-    location: "Part Studio 1",
-  },
-  {
-    id: 3,
-    rule: "Fillet Radius",
-    severity: "low",
-    description: "Fillet radius of 0.3mm is below minimum",
-    location: "Part Studio 2",
-  },
+    description: "Wheel Clearance of 75mm each side in a vertical bounding box from the wheel up",
+    location: "Formula Student Car",
+  }
 ]
 
 export default function CADComplianceTool() {
-  const [activeTab, setActiveTab] = useState("upload")
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [activeTab, setActiveTab] = useState("check_model")
   const [rules, setRules] = useState(mockRules)
   const [isChecking, setIsChecking] = useState(false)
   const [checkProgress, setCheckProgress] = useState(0)
   const [violations, setViolations] = useState<typeof mockViolations>([])
   const [hasResults, setHasResults] = useState(false)
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      setUploadedFile(file)
-      setActiveTab("rules")
-    }
-  }
 
   const toggleRule = (ruleId: number) => {
     setRules(rules.map((rule) => (rule.id === ruleId ? { ...rule, enabled: !rule.enabled } : rule)))
@@ -104,15 +81,51 @@ export default function CADComplianceTool() {
     setCheckProgress(0)
     setActiveTab("results")
 
-    // Simulate checking progress
-    for (let i = 0; i <= 100; i += 10) {
-      setCheckProgress(i)
-      await new Promise((resolve) => setTimeout(resolve, 200))
-    }
+    const enabledRules = rules.filter((rule) => rule.enabled)
 
-    setViolations(mockViolations)
-    setHasResults(true)
-    setIsChecking(false)
+    try {
+      // Simulate initial progress before API call
+      for (let i = 0; i <= 30; i += 10) {
+        setCheckProgress(i)
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+
+      const response = await fetch("/api/check-model", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ rules: enabledRules }),
+      })
+
+      // Simulate remaining progress during/after API call
+      for (let i = 31; i <= 70; i += 10) {
+        setCheckProgress(i)
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+
+      if (!response.ok) {
+        throw new Error("Failed to run compliance check")
+      }
+
+      const resultData = await response.json()
+
+      setViolations(resultData.violations || mockViolations) // Fallback to mockViolations if API doesn't provide them yet
+      
+      for (let i = 71; i <= 100; i += 10) {
+        setCheckProgress(i)
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+      
+      setHasResults(true)
+    } catch (error) {
+      console.error("Error running compliance check:", error)
+      // Handle error state, maybe set a message in the UI
+      setViolations(mockViolations) // Show mock violations on error for now
+      setHasResults(true) // Or set to false and display an error message
+    } finally {
+      setIsChecking(false)
+    }
   }
 
   const getSeverityColor = (severity: string) => {
@@ -150,8 +163,8 @@ export default function CADComplianceTool() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="upload" className="text-xs">
-            Upload
+          <TabsTrigger value="check_model" className="text-xs">
+            Check Model
           </TabsTrigger>
           <TabsTrigger value="rules" className="text-xs">
             Rules
@@ -161,41 +174,23 @@ export default function CADComplianceTool() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="upload" className="space-y-4">
+        <TabsContent value="check_model" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Upload Rules Document</CardTitle>
-              <CardDescription>Upload a document containing your CAD design rules</CardDescription>
+              <CardTitle className="text-lg">Initiate CAD Model Check</CardTitle>
+              <CardDescription>
+                Configure your design rules in the 'Rules' tab, then click below to start the compliance check.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center space-y-2">
-                <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Drop files here or click to browse</p>
-                  <p className="text-xs text-muted-foreground">Supports PDF, DOC, TXT files</p>
-                </div>
-                <Input
-                  type="file"
-                  accept=".pdf,.doc,.docx,.txt"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  id="file-upload"
-                />
-                <Label htmlFor="file-upload">
-                  <Button variant="outline" className="cursor-pointer">
-                    Choose File
-                  </Button>
-                </Label>
-              </div>
-
-              {uploadedFile && (
-                <Alert>
-                  <FileText className="h-4 w-4" />
-                  <AlertDescription>
-                    Uploaded: {uploadedFile.name} ({(uploadedFile.size / 1024).toFixed(1)} KB)
-                  </AlertDescription>
-                </Alert>
-              )}
+              <p className="text-sm text-muted-foreground">
+                This process will involve accessing the specified CAD model from Onshape,
+                exporting it, and sending it for analysis against the selected rules.
+              </p>
+              <Button onClick={runComplianceCheck} className="w-full flex items-center gap-2">
+                <Play className="h-4 w-4" />
+                Run Full Compliance Check
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -230,10 +225,7 @@ export default function CADComplianceTool() {
                 <p className="text-sm text-muted-foreground">
                   {rules.filter((r) => r.enabled).length} of {rules.length} rules selected
                 </p>
-                <Button onClick={runComplianceCheck} className="flex items-center gap-2">
-                  <Play className="h-4 w-4" />
-                  Run Check
-                </Button>
+                {/* Removed Run Check Button from here, it's now in the 'Check Model' tab */}
               </div>
             </CardContent>
           </Card>
@@ -318,7 +310,7 @@ export default function CADComplianceTool() {
                     onClick={() => {
                       setHasResults(false)
                       setViolations([])
-                      setActiveTab("rules")
+                      setActiveTab("check_model") // Navigate to check_model tab
                     }}
                   >
                     Run New Check
