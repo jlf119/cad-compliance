@@ -1,3 +1,4 @@
+// This file was moved from api/app.js to custom-api/app.js for Vercel routing compatibility.
 const express = require('express');
 const session = require('express-session');
 const passport = require('passport');

@@ -1,15 +1,15 @@
 {
   "version": 2,
   "builds": [
-    { "src": "api/app.js", "use": "@vercel/node" },
+    { "src": "custom-api/app.js", "use": "@vercel/node" },
     { "src": "package.json", "use": "@vercel/next" }
   ],
   "routes": [
-    { "src": "/api/oauth.*", "dest": "/api/app.js" },
-    { "src": "/api/user(info)?", "dest": "/api/app.js" },
-    { "src": "/api/onshape/.*", "dest": "/api/app.js" },
-    { "src": "/api/proxy/check-model", "dest": "/api/app.js" },
-    { "src": "/api/logout", "dest": "/api/app.js" },
+    { "src": "/api/oauth.*", "dest": "/custom-api/app.js" },
+    { "src": "/api/user(info)?", "dest": "/custom-api/app.js" },
+    { "src": "/api/onshape/.*", "dest": "/custom-api/app.js" },
+    { "src": "/api/proxy/check-model", "dest": "/custom-api/app.js" },
+    { "src": "/api/logout", "dest": "/custom-api/app.js" },
     { "src": "/api/(.*)", "dest": "/app/api/$1" },
     { "src": "/(.*)", "dest": "/app/$1" }
   ]
