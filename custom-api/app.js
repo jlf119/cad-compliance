@@ -33,8 +33,20 @@ app.use(cookieSession({
 app.use(passport.initialize());
 app.use(passport.session());
 
-passport.serializeUser((user, done) => done(null, user));
-passport.deserializeUser((obj, done) => done(null, obj));
+// Store only minimal user info in the session cookie for Vercel compatibility
+passport.serializeUser((user, done) => {
+  done(null, {
+    id: user.id,
+    accessToken: user.accessToken,
+    refreshToken: user.refreshToken,
+    email: user.email,
+    displayName: user.displayName
+  });
+});
+
+passport.deserializeUser((obj, done) => {
+  done(null, obj);
+});
 
 passport.use(new OnshapeStrategy({
     clientID: OAUTH_CLIENT_ID,
