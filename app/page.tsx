@@ -72,12 +72,19 @@ export default function CADComplianceTool() {
 	const [violations, setViolations] = useState<typeof mockViolations>([])
 	const [hasResults, setHasResults] = useState(false)
 
-	// --- OAUTH STATE ---
-	const [accessToken, setAccessToken] = useState<string | null>(null)
+	// --- ONSHAPE CONTEXT ---
 	const [documentId, setDocumentId] = useState<string>("")
 	const [workspaceId, setWorkspaceId] = useState<string>("")
 	const [elementId, setElementId] = useState<string>("")
 	const [oauthError, setOauthError] = useState<string | null>(null)
+
+	// --- USER PROFILE ---
+	interface UserProfile {
+		name?: string
+		email?: string
+		id?: string
+	}
+	const [user, setUser] = useState<UserProfile | null>(null)
 
 	// --- ONSHAPE CONTEXT ---
 	useEffect(() => {
@@ -90,32 +97,13 @@ export default function CADComplianceTool() {
 		}
 	}, [])
 
-	// --- OAUTH FLOW ---
-	// 1. Redirect user to Onshape OAuth login
-	const ONSHAPE_CLIENT_ID = process.env.NEXT_PUBLIC_OAUTH_CLIENT_ID || "" // Set in .env
-	const ONSHAPE_REDIRECT_URI = process.env.NEXT_PUBLIC_OAUTH_CALLBACK_URL || "" // Set in .env
-	const ONSHAPE_AUTH_URL =
-		`https://oauth.onshape.com/oauth/authorize?response_type=token&client_id=${encodeURIComponent(ONSHAPE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(ONSHAPE_REDIRECT_URI)}&scope=OAuth2Read` // You may want more scopes
-
-	// 2. Parse access token from URL hash after redirect
+	// --- USER PROFILE ---
 	useEffect(() => {
-		if (typeof window !== "undefined" && !accessToken) {
-			const hash = window.location.hash
-			if (hash && hash.includes("access_token")) {
-				const params = new URLSearchParams(hash.replace(/^#/, ""))
-				const token = params.get("access_token")
-				if (token) {
-					setAccessToken(token)
-					window.location.hash = "" // Clean up URL
-				}
-			}
-		}
-	}, [accessToken])
-
-	// 3. Helper to start OAuth login
-	const handleLogin = () => {
-		window.location.href = ONSHAPE_AUTH_URL
-	}
+		// Fetch user profile from backend session
+		fetch("/api/user", { credentials: "include" })
+			.then(res => res.ok ? res.json() : null)
+			.then(data => setUser(data?.user || null))
+	}, [])
 
 	// --- RUN COMPLIANCE CHECK ---
 	const runComplianceCheck = async () => {
@@ -131,7 +119,6 @@ export default function CADComplianceTool() {
 				await new Promise((resolve) => setTimeout(resolve, 100))
 			}
 
-			if (!accessToken) throw new Error("Not authenticated with Onshape.")
 			if (!documentId || !workspaceId || !elementId) throw new Error("Missing CAD model IDs.")
 
 			const response = await fetch("/api/check-model", {
@@ -139,12 +126,12 @@ export default function CADComplianceTool() {
 				headers: {
 					"Content-Type": "application/json",
 				},
+				credentials: "include",
 				body: JSON.stringify({
 					rules: enabledRules,
 					documentId,
 					workspaceId,
 					elementId,
-					accessToken,
 				}),
 			})
 
@@ -207,10 +194,10 @@ export default function CADComplianceTool() {
 	return (
 		<div className="w-full max-w-md mx-auto p-4 space-y-4">
 			{/* OAUTH LOGIN */}
-			{!accessToken ? (
+			{!documentId ? (
 				<div className="space-y-4">
-					<Button onClick={handleLogin} className="w-full">
-						Login with Onshape
+					<Button onClick={runComplianceCheck} className="w-full">
+						Continue to Compliance Tool
 					</Button>
 					{oauthError && (
 						<Alert>
@@ -404,7 +391,7 @@ export default function CADComplianceTool() {
 							)}
 
 							{/* Show STEP download link if available */}
-							{hasResults && !isChecking && accessToken && documentId && (
+							{hasResults && !isChecking && documentId && workspaceId && (
 								violations.length === 0 && (
 									<a
 										href={typeof window !== 'undefined' && window.localStorage.getItem('lastStepUrl') || undefined}
@@ -421,6 +408,27 @@ export default function CADComplianceTool() {
 					</Card>
 				</TabsContent>
 			</Tabs>
+
+			{/* USER PROFILE */}
+			{user && (
+				<div className="mt-4 p-4 bg-muted rounded-lg">
+					<div className="flex items-center justify-between">
+						<span className="text-sm">
+							Welcome, {user.name || user.email || user.id}
+						</span>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => {
+								fetch("/api/logout", { credentials: "include" })
+									.then(() => window.location.reload())
+							}}
+						>
+							Logout
+						</Button>
+					</div>
+				</div>
+			)}
 		</div>
 	)
 }
