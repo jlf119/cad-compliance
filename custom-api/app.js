@@ -52,7 +52,7 @@ passport.use(new OnshapeStrategy({
 ));
 
 // OAuth sign-in
-app.get('/api/oauthSignin', (req, res, next) => {
+app.use('/api/oauthSignin', (req, res, next) => {
   const stateObj = {
     docId: req.query.documentId,
     workId: req.query.workspaceId,
@@ -66,7 +66,7 @@ app.get('/api/oauthSignin', (req, res, next) => {
 });
 
 // OAuth callback
-app.get('/api/oauthRedirect', passport.authenticate('onshape', { failureRedirect: '/grantDenied' }), (req, res) => {
+app.use('/api/oauthRedirect', passport.authenticate('onshape', { failureRedirect: '/grantDenied' }), (req, res) => {
   // Debug: log user after login
   console.log('OAuth callback user:', req.user);
   let state = req.query.state;
