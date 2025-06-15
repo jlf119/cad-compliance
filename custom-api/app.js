@@ -1,9 +1,9 @@
 // This file was moved from api/app.js to custom-api/app.js for Vercel routing compatibility.
 const express = require('express');
-const cookieSession = require('cookie-session');
+const cookieParser = require('cookie-parser');
 const passport = require('passport');
 const OnshapeStrategy = require('passport-onshape');
-const uuid = require('uuid');
+const jwt = require('jsonwebtoken');
 
 const {
   OAUTH_CLIENT_ID,
@@ -17,82 +17,63 @@ const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // --- DYNAMIC COOKIE SETTINGS FOR VERCEL/LOCAL ---
 app.set('trust proxy', 1); // To allow to run correctly behind proxies
 
-app.use(cookieSession({
-  name: 'session',
-  keys: [SESSION_SECRET],
-  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-  secure: process.env.NODE_ENV === 'production',
-  httpOnly: true,
-  path: '/',
-  maxAge: 1000 * 60 * 60 * 24 // 1 day
-}));
-app.use(passport.initialize());
-app.use(passport.session());
-
-// Store only minimal user info in the session cookie for Vercel compatibility
-passport.serializeUser((user, done) => {
-  done(null, {
-    id: user.id,
-    accessToken: user.accessToken,
-    refreshToken: user.refreshToken,
-    email: user.email,
-    displayName: user.displayName
-  });
-});
-
-passport.deserializeUser((obj, done) => {
-  done(null, obj);
-});
-
-passport.use(new OnshapeStrategy({
-    clientID: OAUTH_CLIENT_ID,
-    clientSecret: OAUTH_CLIENT_SECRET,
-    callbackURL: OAUTH_CALLBACK_URL,
-    authorizationURL: `${OAUTH_URL}/oauth/authorize`,
-    tokenURL: `${OAUTH_URL}/oauth/token`,
-    userProfileURL: 'https://cad.onshape.com/api/users/sessioninfo'
-  },
-  (accessToken, refreshToken, profile, done) => {
-    profile.accessToken = accessToken;
-    profile.refreshToken = refreshToken;
-    return done(null, profile);
-  }
-));
-
-// OAuth sign-in
-app.use('/api/oauthSignin', (req, res, next) => {
+// --- OAUTH SIGNIN ---
+app.get('/api/oauthSignin', (req, res, next) => {
   const stateObj = {
     docId: req.query.documentId,
     workId: req.query.workspaceId,
     elId: req.query.elementId
   };
-  req.session = req.session || {};
-  req.session.state = stateObj;
   // Encode state as base64 JSON string for round-trip
   const state = Buffer.from(JSON.stringify(stateObj)).toString('base64');
   passport.authenticate('onshape', { state })(req, res, next);
 });
 
-// OAuth callback
-app.use('/api/oauthRedirect', passport.authenticate('onshape', { failureRedirect: '/grantDenied' }), (req, res) => {
-  // Debug: log user after login
-  console.log('OAuth callback user:', req.user);
+// --- OAUTH REDIRECT ---
+app.get('/api/oauthRedirect', passport.authenticate('onshape', { failureRedirect: '/grantDenied' }), (req, res) => {
+  // Create JWT with minimal user info
+  const userPayload = {
+    id: req.user.id,
+    accessToken: req.user.accessToken,
+    refreshToken: req.user.refreshToken,
+    email: req.user.email,
+    displayName: req.user.displayName
+  };
+  const token = jwt.sign(userPayload, SESSION_SECRET, { expiresIn: '1d' });
+  // Set JWT as HttpOnly cookie
+  res.cookie('auth_token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: 1000 * 60 * 60 * 24
+  });
+  // State decode for redirect
   let state = req.query.state;
-  let stateObj = req.session && req.session.state;
-  // If state param is present, decode it
+  let stateObj = {};
   if (state) {
     try {
       stateObj = JSON.parse(Buffer.from(state, 'base64').toString('utf8'));
-    } catch (e) {
-      // fallback to session
-    }
+    } catch (e) {}
   }
   res.redirect(`/?documentId=${stateObj?.docId || ''}&workspaceId=${stateObj?.workId || ''}&elementId=${stateObj?.elId || ''}`);
 });
+
+// --- AUTH MIDDLEWARE ---
+function requireAuth(req, res, next) {
+  const token = req.cookies.auth_token || (req.headers.authorization && req.headers.authorization.split(' ')[1]);
+  if (!token) return res.status(401).json({ error: 'Not authenticated' });
+  try {
+    req.user = jwt.verify(token, SESSION_SECRET);
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}
 
 // Grant denied
 app.get('/grantDenied', (req, res) => {
@@ -100,14 +81,12 @@ app.get('/grantDenied', (req, res) => {
 });
 
 // Example protected API route
-app.get('/api/userinfo', (req, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+app.get('/api/userinfo', requireAuth, (req, res) => {
   res.json({ user: req.user });
 });
 
 // Proxy Onshape API calls
-app.get('/api/onshape/*', async (req, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+app.get('/api/onshape/*', requireAuth, async (req, res) => {
   const apiPath = req.params[0];
   const url = `https://cad.onshape.com/api/${apiPath}`;
   try {
@@ -120,8 +99,7 @@ app.get('/api/onshape/*', async (req, res) => {
 });
 
 // --- COMPLIANCE CHECK PROXY ---
-app.post('/api/proxy/check-model', async (req, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+app.post('/api/proxy/check-model', requireAuth, async (req, res) => {
   const { documentId, workspaceId, elementId, rules } = req.body;
   if (!documentId || !workspaceId || !elementId) {
     return res.status(400).json({ error: 'Missing required parameters (documentId, workspaceId, elementId).' });
@@ -180,8 +158,7 @@ app.post('/api/proxy/check-model', async (req, res) => {
 });
 
 // --- USER PROFILE ENDPOINT ---
-app.get('/api/user', (req, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+app.get('/api/user', requireAuth, (req, res) => {
   // Defensive: Onshape profile may use different fields
   const name = req.user.displayName || req.user.name || req.user.username || req.user.email || req.user.id;
   const email = req.user.email || null;
@@ -191,17 +168,12 @@ app.get('/api/user', (req, res) => {
 
 // --- LOGOUT ENDPOINT ---
 app.post('/api/logout', (req, res) => {
-  req.logout(() => {
-    req.session.destroy(() => {
-      res.clearCookie('connect.sid');
-      res.json({ success: true });
-    });
-  });
+  res.clearCookie('auth_token');
+  res.json({ success: true });
 });
 
 // --- DOWNLOAD STEP FILE ENDPOINT (ASYNC EXPORT) ---
-app.get('/api/download-step', async (req, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+app.get('/api/download-step', requireAuth, async (req, res) => {
   const did = req.query.docId;
   const wvid = req.query.workId;
   const eid = req.query.elId;
