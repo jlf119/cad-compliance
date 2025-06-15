@@ -1,6 +1,6 @@
 // This file was moved from api/app.js to custom-api/app.js for Vercel routing compatibility.
 const express = require('express');
-const session = require('express-session');
+const cookieSession = require('cookie-session');
 const passport = require('passport');
 const OnshapeStrategy = require('passport-onshape');
 const uuid = require('uuid');
@@ -18,20 +18,17 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// --- DYNAMIC COOKIE SETTINGS FOR HEROKU/LOCAL ---
-app.set('trust proxy', 1); // To allow to run correctly behind Heroku when deployed.
+// --- DYNAMIC COOKIE SETTINGS FOR VERCEL/LOCAL ---
+app.set('trust proxy', 1); // To allow to run correctly behind proxies
 
-app.use(session({
-  secret: SESSION_SECRET,
-  saveUninitialized: false,
-  resave: false,
-  cookie: {
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    path: '/',
-    maxAge: 1000 * 60 * 60 * 24 // 1 day
-  }
+app.use(cookieSession({
+  name: 'session',
+  keys: [SESSION_SECRET],
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  secure: process.env.NODE_ENV === 'production',
+  httpOnly: true,
+  path: '/',
+  maxAge: 1000 * 60 * 60 * 24 // 1 day
 }));
 app.use(passport.initialize());
 app.use(passport.session());
