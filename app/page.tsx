@@ -92,8 +92,8 @@ export default function CADComplianceTool() {
 
 	// --- OAUTH FLOW ---
 	// 1. Redirect user to Onshape OAuth login
-	const ONSHAPE_CLIENT_ID = process.env.OAUTH_CLIENT_ID || "" // Set in .env
-	const ONSHAPE_REDIRECT_URI = process.env.OAUTH_CALLBACK_URL || "" // Set in .env
+	const ONSHAPE_CLIENT_ID = process.env.NEXT_PUBLIC_OAUTH_CLIENT_ID || "" // Set in .env
+	const ONSHAPE_REDIRECT_URI = process.env.NEXT_PUBLIC_OAUTH_CALLBACK_URL || "" // Set in .env
 	const ONSHAPE_AUTH_URL =
 		`https://oauth.onshape.com/oauth/authorize?response_type=token&client_id=${encodeURIComponent(ONSHAPE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(ONSHAPE_REDIRECT_URI)}&scope=OAuth2Read` // You may want more scopes
 
