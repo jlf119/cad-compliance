@@ -2,9 +2,7 @@ const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
 const OnshapeStrategy = require('passport-onshape');
-const path = require('path');
 const uuid = require('uuid');
-const fetch = require('node-fetch');
 
 const {
   OAUTH_CLIENT_ID,
