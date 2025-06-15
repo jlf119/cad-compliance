@@ -19,39 +19,11 @@ import { Separator } from "@/components/ui/separator"
 const mockRules = [
 	{
 		id: 1,
-		name: "Minimum Wall Thickness",
-		description: "All walls must be >= 2mm thick",
-		category: "Manufacturing",
+		name: "Formula Student Rule Assessment",
+		description: "75mm Wheel Clearance",
+		category: "Measurements",
 		enabled: true,
-	},
-	{
-		id: 2,
-		name: "Maximum Overhang Angle",
-		description: "Overhangs must be <= 45 degrees",
-		category: "3D Printing",
-		enabled: true,
-	},
-	{
-		id: 3,
-		name: "Hole Diameter Standards",
-		description: "Holes must follow standard drill sizes",
-		category: "Manufacturing",
-		enabled: false,
-	},
-	{
-		id: 4,
-		name: "Material Thickness",
-		description: "Sheet metal thickness must be standard",
-		category: "Sheet Metal",
-		enabled: true,
-	},
-	{
-		id: 5,
-		name: "Fillet Radius",
-		description: "Minimum fillet radius of 0.5mm",
-		category: "Manufacturing",
-		enabled: true,
-	},
+	}
 ]
 
 const mockViolations = [
@@ -103,9 +75,18 @@ export default function CADComplianceTool() {
 		fetch("/api/user", { credentials: "include" })
 			.then(res => res.ok ? res.json() : null)
 			.then(data => setUser(data?.user || null))
-	}, [])
+}, [])
 
-	// --- RUN COMPLIANCE CHECK ---
+// Default values can be set directly in the state initialization above
+// or through setters here if needed
+useEffect(() => {
+	// Set default values for testing if needed
+	if (!documentId) setDocumentId("7b174f2cde12417d1c70c59c")
+	if (!workspaceId) setWorkspaceId("72a5e2993aa999323f2ba650")
+	if (!elementId) setElementId("ea5bd637ddfce7d24d94764b")
+}, [documentId, workspaceId, elementId])
+
+// --- RUN COMPLIANCE CHECK ---
 	const runComplianceCheck = async () => {
 		setIsChecking(true)
 		setCheckProgress(0)
