@@ -156,8 +156,11 @@ app.post('/api/proxy/check-model', async (req, res) => {
 // --- USER PROFILE ENDPOINT ---
 app.get('/api/user', (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
-  const { displayName, email, id } = req.user;
-  res.json({ user: { name: displayName, email, id } });
+  // Defensive: Onshape profile may use different fields
+  const name = req.user.displayName || req.user.name || req.user.username || req.user.email || req.user.id;
+  const email = req.user.email || null;
+  const id = req.user.id || req.user.userid || null;
+  res.json({ user: { name, email, id } });
 });
 
 // --- LOGOUT ENDPOINT ---
