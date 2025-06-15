@@ -54,9 +54,9 @@ passport.use(new OnshapeStrategy({
 // OAuth sign-in
 app.get('/api/oauthSignin', (req, res, next) => {
   const state = {
-    //docId: req.query.documentId,
-    //workId: req.query.workspaceId,
-    //elId: req.query.elementId
+    docId: req.query.documentId,
+    workId: req.query.workspaceId,
+    elId: req.query.elementId
   };
   req.session.state = state;
   passport.authenticate('onshape', { state: uuid.v4(state) })(req, res, next);
