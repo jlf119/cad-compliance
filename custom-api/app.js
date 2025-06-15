@@ -172,4 +172,73 @@ app.post('/api/logout', (req, res) => {
   });
 });
 
+// --- DOWNLOAD STEP FILE ENDPOINT (ASYNC EXPORT) ---
+app.get('/api/download_step', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
+  const did = req.query.docId;
+  const wvid = req.query.workId;
+  const eid = req.query.elId;
+  if (!did || !wvid || !eid) {
+    return res.status(400).json({ error: 'Missing required parameters (docId, workId, elId).' });
+  }
+  // 1. Initiate STEP export
+  const exportUrl = `https://cad.onshape.com/api/assemblies/d/${did}/w/${wvid}/e/${eid}/export/step`;
+  const exportBody = {
+    stepUnit: "METER",
+    stepVersionString: "AP242",
+    storeInDocument: false,
+    notifyUser: false
+  };
+  try {
+    const startResp = await fetch(exportUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${req.user.accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(exportBody)
+    });
+    if (!startResp.ok) {
+      const errorText = await startResp.text();
+      return res.status(startResp.status).send(errorText);
+    }
+    const startData = await startResp.json();
+    const translationId = startData.id;
+    // 2. Poll for completion
+    let translationResult;
+    for (let i = 0; i < 20; i++) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const pollResp = await fetch(`https://cad.onshape.com/api/translations/${translationId}`, {
+        headers: { "Authorization": `Bearer ${req.user.accessToken}` }
+      });
+      translationResult = await pollResp.json();
+      if (translationResult.requestState === "DONE") break;
+      if (translationResult.requestState === "FAILED") {
+        return res.status(500).json({ error: `Translation failed: ${translationResult.failureReason}` });
+      }
+    }
+    if (!translationResult || translationResult.requestState !== "DONE") {
+      return res.status(500).json({ error: 'STEP export timed out.' });
+    }
+    const externalId = translationResult.resultExternalDataIds[0];
+    if (!externalId) {
+      return res.status(500).json({ error: 'No external data ID found in translation result.' });
+    }
+    // 3. Download the STEP file
+    const downloadUrl = `https://cad.onshape.com/api/documents/d/${did}/externaldata/${externalId}`;
+    const fetchResp = await fetch(downloadUrl, {
+      headers: { Authorization: `Bearer ${req.user.accessToken}` }
+    });
+    if (!fetchResp.ok) {
+      const errorText = await fetchResp.text();
+      return res.status(fetchResp.status).send(errorText);
+    }
+    res.setHeader('Content-Disposition', 'attachment; filename="model.step"');
+    res.setHeader('Content-Type', 'application/step');
+    fetchResp.body.pipe(res);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = app;
