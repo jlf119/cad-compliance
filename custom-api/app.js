@@ -52,12 +52,13 @@ passport.use(new OnshapeStrategy({
 ));
 
 // OAuth sign-in
-app.use('/api/oauthSignin', (req, res, next) => {
+app.get('/api/oauthSignin', (req, res, next) => {
   const stateObj = {
     docId: req.query.documentId,
     workId: req.query.workspaceId,
     elId: req.query.elementId
   };
+  req.session = req.session || {};
   req.session.state = stateObj;
   // Encode state as base64 JSON string for round-trip
   const state = Buffer.from(JSON.stringify(stateObj)).toString('base64');
@@ -65,9 +66,11 @@ app.use('/api/oauthSignin', (req, res, next) => {
 });
 
 // OAuth callback
-app.use('/api/oauthRedirect', passport.authenticate('onshape', { failureRedirect: '/grantDenied' }), (req, res) => {
+app.get('/api/oauthRedirect', passport.authenticate('onshape', { failureRedirect: '/grantDenied' }), (req, res) => {
+  // Debug: log user after login
+  console.log('OAuth callback user:', req.user);
   let state = req.query.state;
-  let stateObj = req.session.state;
+  let stateObj = req.session && req.session.state;
   // If state param is present, decode it
   if (state) {
     try {
