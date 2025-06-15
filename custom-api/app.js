@@ -173,7 +173,7 @@ app.post('/api/logout', (req, res) => {
 });
 
 // --- DOWNLOAD STEP FILE ENDPOINT (ASYNC EXPORT) ---
-app.get('/api/download_step', async (req, res) => {
+app.get('/api/download-step', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
   const did = req.query.docId;
   const wvid = req.query.workId;
