@@ -51,7 +51,7 @@ passport.use(new OnshapeStrategy({
 ));
 
 // OAuth sign-in
-app.get('/oauthSignin', (req, res, next) => {
+app.get('api/oauthSignin', (req, res, next) => {
   const state = {
     docId: req.query.documentId,
     workId: req.query.workspaceId,
@@ -62,7 +62,7 @@ app.get('/oauthSignin', (req, res, next) => {
 });
 
 // OAuth callback
-app.get('/oauthRedirect', passport.authenticate('onshape', { failureRedirect: '/grantDenied' }), (req, res) => {
+app.get('api/oauthRedirect', passport.authenticate('onshape', { failureRedirect: '/grantDenied' }), (req, res) => {
   res.redirect(`/?documentId=${req.session.state.docId}&workspaceId=${req.session.state.workId}&elementId=${req.session.state.elId}`);
 });
 
