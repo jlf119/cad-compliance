@@ -18,13 +18,16 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// --- DYNAMIC COOKIE SETTINGS FOR HEROKU/LOCAL ---
+app.set('trust proxy', 1); // To allow to run correctly behind Heroku when deployed.
+
 app.use(session({
   secret: SESSION_SECRET,
   saveUninitialized: false,
   resave: false,
   cookie: {
-    sameSite: 'none',
-    secure: true,
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
     path: '/',
     maxAge: 1000 * 60 * 60 * 24 // 1 day
@@ -52,19 +55,31 @@ passport.use(new OnshapeStrategy({
 ));
 
 // OAuth sign-in
-app.get('/api/oauthSignin', (req, res, next) => {
-  const state = {
+app.use('/api/oauthSignin', (req, res, next) => {
+  const stateObj = {
     docId: req.query.documentId,
     workId: req.query.workspaceId,
     elId: req.query.elementId
   };
-  req.session.state = state;
-  passport.authenticate('onshape', { state: uuid.v4(state) })(req, res, next);
+  req.session.state = stateObj;
+  // Encode state as base64 JSON string for round-trip
+  const state = Buffer.from(JSON.stringify(stateObj)).toString('base64');
+  passport.authenticate('onshape', { state })(req, res, next);
 });
 
 // OAuth callback
-app.get('/api/oauthRedirect', passport.authenticate('onshape', { failureRedirect: '/grantDenied' }), (req, res) => {
-  res.redirect(`/?documentId=${req.session.state.docId}&workspaceId=${req.session.state.workId}&elementId=${req.session.state.elId}`);
+app.use('/api/oauthRedirect', passport.authenticate('onshape', { failureRedirect: '/grantDenied' }), (req, res) => {
+  let state = req.query.state;
+  let stateObj = req.session.state;
+  // If state param is present, decode it
+  if (state) {
+    try {
+      stateObj = JSON.parse(Buffer.from(state, 'base64').toString('utf8'));
+    } catch (e) {
+      // fallback to session
+    }
+  }
+  res.redirect(`/?documentId=${stateObj?.docId || ''}&workspaceId=${stateObj?.workId || ''}&elementId=${stateObj?.elId || ''}`);
 });
 
 // Grant denied
