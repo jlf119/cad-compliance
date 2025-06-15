@@ -10,6 +10,7 @@
     { "src": "/api/onshape/.*", "dest": "/custom-api/app.js" },
     { "src": "/api/proxy/check-model", "dest": "/custom-api/app.js" },
     { "src": "/api/logout", "dest": "/custom-api/app.js" },
+    { "src": "/api/download_step", "dest": "/custom-api/app.js" },
     { "src": "/api/(.*)", "dest": "/app/api/$1" },
     { "src": "/(.*)", "dest": "/app/$1" }
   ]
